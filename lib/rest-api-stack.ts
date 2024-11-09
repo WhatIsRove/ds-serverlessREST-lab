@@ -67,6 +67,18 @@ export class RestAPIStack extends cdk.Stack {
       },
     });
 
+    const removeMovieFn = new lambdanode.NodejsFunction(this, "RemoveMovieFn", {
+      architecture: lambda.Architecture.ARM_64,
+      runtime: lambda.Runtime.NODEJS_18_X,
+      entry: `${__dirname}/../lambdas/removeMovie.ts`,
+      timeout: cdk.Duration.seconds(10),
+      memorySize: 128,
+      environment: {
+        TABLE_NAME: moviesTable.tableName,
+        REGION: "eu-west-1",
+      }
+    });
+
     new custom.AwsCustomResource(this, "moviesddbInitData", {
       onCreate: {
         service: "DynamoDB",
@@ -87,6 +99,7 @@ export class RestAPIStack extends cdk.Stack {
     moviesTable.grantReadData(getMovieByIdFn)
     moviesTable.grantReadData(getAllMoviesFn)
     moviesTable.grantReadWriteData(newMovieFn)
+    moviesTable.grantReadWriteData(removeMovieFn)
 
     // REST API 
     const api = new apig.RestApi(this, "RestAPI", {
@@ -111,6 +124,11 @@ export class RestAPIStack extends cdk.Stack {
     moviesEndpoint.addMethod(
       "POST",
       new apig.LambdaIntegration(newMovieFn, { proxy: true })
+    );
+
+    moviesEndpoint.addMethod(
+      "DELETE",
+      new apig.LambdaIntegration(removeMovieFn, { proxy: true })
     );
 
     const movieEndpoint = moviesEndpoint.addResource("{movieId}");
